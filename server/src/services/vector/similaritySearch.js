@@ -1,9 +1,21 @@
 const Chunk = require("../../models/Chunk");
 
-const similaritySearch = async (embedding, userId) => {
+const similaritySearch = async (embedding, userId, noteId) => {
 
-  const chunks = await Chunk.find({ userId });
+  // ✅ Query build
+  const query = {
+    userId,
+    embedding: { $ne: [] } // skip empty embeddings
+  };
 
+  // ✅ Filter by note if selected
+  if (noteId) {
+    query.noteId = noteId;
+  }
+
+  const chunks = await Chunk.find(query);
+
+  // ✅ Score calculation
   const scored = chunks.map(chunk => {
 
     const score = cosineSimilarity(embedding, chunk.embedding);
@@ -12,12 +24,18 @@ const similaritySearch = async (embedding, userId) => {
 
   });
 
+  // ✅ Sort by similarity
   scored.sort((a, b) => b.score - a.score);
 
-  return scored.slice(0, 5).map(item => item.chunk);
+  // ✅ Top K (better accuracy)
+  return scored.slice(0, 3).map(item => item.chunk);
 };
 
+
+// ✅ cosine similarity
 function cosineSimilarity(a, b) {
+
+  if (!a || !b || a.length !== b.length) return 0;
 
   let dot = 0;
   let magA = 0;
@@ -31,6 +49,8 @@ function cosineSimilarity(a, b) {
 
   magA = Math.sqrt(magA);
   magB = Math.sqrt(magB);
+
+  if (magA === 0 || magB === 0) return 0;
 
   return dot / (magA * magB);
 }
